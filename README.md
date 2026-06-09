@@ -1,35 +1,82 @@
-# Rupa Enterprises CRM
+# TurfCRM — Own Your Territory
 
-Custom CRM & Field Sales Automation Platform for Rupa Enterprises.
+**TurfCRM** is a smart, open-source Field Sales CRM built for trading and distribution businesses. Track visits, manage pipelines, automate follow-ups, import Tally billing data, and generate brand-wise reports — all in one place.
+
+> Built for field sales teams that are serious about owning their territory.
+
+---
+
+## Why TurfCRM?
+
+Most CRMs are built for SaaS companies. TurfCRM is built for **field sales teams** — the ones visiting clients daily, managing distributors, tracking orders, and reporting to brand partners.
+
+- 📍 **GPS visit tracking** — capture exact location on every client visit
+- 📊 **Brand-wise pipeline** — report to each brand partner with real data
+- 🔔 **Auto follow-up escalation** — never let a lead go cold
+- 📥 **Tally billing import** — upload Excel from Tally, auto-match clients
+- 📈 **Month-over-Month reports** — see exactly which clients are growing or declining
+- 👥 **Role-based access** — 6 roles from field exec to CEO
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, Tailwind CSS, Vite |
+| Frontend | React 18, Tailwind CSS 3, Vite 5 |
 | Backend | Node.js, Express.js |
 | Database | MySQL 8+ |
 | Auth | JWT (access + refresh tokens) |
 | Charts | Recharts |
 | File Upload | Multer |
-| Excel Export | ExcelJS |
+| Excel Export/Import | ExcelJS |
 | Process Manager | PM2 |
 | Web Server | Nginx |
-| Server | Ubuntu VPS (Hostinger) |
+| Deployment | Ubuntu VPS |
+
+---
+
+## Features
+
+### ✅ Core Modules
+- **Authentication** — JWT, 6 roles, forgot/reset password
+- **User Management** — create users, assign roles & managers
+- **Client Master** — GPS coordinates, brands, categories, bulk Excel import
+- **Field Visit Tracking** — GPS capture, photo upload, manager approval workflow
+- **Follow-up System** — auto-create from visits, overdue detection, daily escalation cron
+- **Opportunity Pipeline** — 8 stages, stage history, comments, brand-wise tracking
+- **Quotation Tracking** — link to opportunities, track status
+- **Purchase Orders** — log POs, track dispatch status
+- **Tally Billing Import** — Excel upload, auto client matching, unmatched record mapping
+- **Role-based Dashboards** — different views for exec, manager, management, ops
+- **Reports** — visits, pipeline, follow-ups, billing, brand report, MOM comparison
+- **Excel Export** — every module exportable
+- **Notifications** — in-app bell, overdue alerts, escalation alerts
+- **Audit Trail** — every critical action logged
+
+### 🗺️ User Roles
+| Role | Access |
+|------|--------|
+| `super_admin` | Full system access |
+| `admin` | Users, clients, brands, reports |
+| `sales_manager` | Team visits, approvals, pipeline |
+| `sales_executive` | Own visits, clients, opportunities |
+| `backend_ops` | Quotations, POs, billing imports |
+| `management` | View-only dashboards & reports |
 
 ---
 
 ## Project Structure
 
 ```
-rupa-crm/
+TurfCRM/
 ├── backend/
 │   ├── src/
 │   │   ├── config/          # DB, JWT, Multer config
 │   │   ├── controllers/     # Business logic
 │   │   ├── database/        # schema.sql, migrate.js, seed.js
 │   │   ├── jobs/            # Cron jobs (followup escalation)
-│   │   ├── middleware/       # auth, error handler, rate limiter
+│   │   ├── middleware/      # auth, error handler, rate limiter
 │   │   ├── routes/          # Express routers
 │   │   ├── uploads/         # File storage (gitignored)
 │   │   ├── utils/           # response, pagination, audit, logger
@@ -90,27 +137,27 @@ npm install
 npm run dev                     # Start on port 3000
 ```
 
-Open: http://localhost:3000  
-Login: `admin@rupaenterprises.com` / `Admin@123`
+Open: [http://localhost:3000](http://localhost:3000)
+Login: `admin@example.com` / `Admin@123`
 
 ---
 
-## Deployment (Hostinger VPS)
+## Deployment (VPS)
 
 ```bash
 # 1. Upload project to server
-scp -r rupa-crm/ root@YOUR_VPS_IP:/var/www/
+scp -r TurfCRM/ root@YOUR_VPS_IP:/var/www/
 
 # 2. SSH to server
 ssh root@YOUR_VPS_IP
 
-# 3. Copy and configure environment
-cd /var/www/rupa-crm/backend
+# 3. Configure environment
+cd /var/www/TurfCRM/backend
 cp .env.example .env
 nano .env   # Set DB password, JWT secrets, domain
 
 # 4. Run full setup
-bash /var/www/rupa-crm/docs/deploy.sh
+bash /var/www/TurfCRM/docs/deploy.sh
 
 # 5. Run migrations
 node src/database/migrate.js
@@ -121,54 +168,44 @@ Full instructions: [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md)
 
 ---
 
-## User Roles
+## Roadmap
 
-| Role | Access |
-|------|--------|
-| super_admin | Full access |
-| admin | Users, clients, brands, reports |
-| sales_manager | Team visits, approvals, pipeline |
-| sales_executive | Own visits, clients, opportunities |
-| backend_ops | Quotations, POs, billing imports |
-| management | View-only dashboards & reports |
+### Phase 1 ✅ Done
+- [x] Authentication & RBAC
+- [x] Client master with GPS & bulk import
+- [x] Field visit tracking & approval workflow
+- [x] Follow-up automation & escalation
+- [x] 8-stage opportunity pipeline
+- [x] Role-based dashboards
+- [x] Reports with Excel export
+- [x] Audit trail & notifications
 
----
+### Phase 2 ✅ Done
+- [x] Quotation & PO tracking
+- [x] Tally billing import
+- [x] Brand-wise performance report
+- [x] Month-over-Month billing comparison
+- [x] Product movement analysis
+- [x] Mobile-responsive UI
 
-## Modules — MVP (Phase 1)
-
-- [x] Authentication (JWT, roles, forgot/reset password)
-- [x] User management with role assignment
-- [x] Client master with GPS, brands, categories
-- [x] Field visit tracking with GPS capture & file upload
-- [x] Manager visit approval workflow
-- [x] Follow-up creation, tracking, overdue detection
-- [x] Auto follow-up from visit next-followup-date
-- [x] Cron job: daily overdue marking + escalation
-- [x] Opportunity pipeline with 8 stages & stage history
-- [x] Brand-wise pipeline tracking
-- [x] Role-based dashboards (salesperson, manager, management)
-- [x] Reports: visits, opportunities, follow-ups, billing
-- [x] Excel/CSV export for all major modules
-- [x] Audit trail for all critical actions
-- [x] In-app notification system
-
-## Phase 2 (Ready to activate)
-
-- [x] Manual quotation tracking
-- [x] Purchase order tracking
-- [x] Tally billing import (Excel upload, client mapping)
-- [x] Overdue payment report
-- [x] Client-wise MOM billing comparison
-
-## Phase 3 (Future)
-
-- [ ] Zoho Books OAuth integration
-- [ ] WhatsApp notifications
+### Phase 3 🔜 Coming Soon
+- [ ] WhatsApp notifications (WATI)
+- [ ] Zoho Books integration
+- [ ] React Native mobile app
 - [ ] SMS reminders
-- [ ] Native mobile app
 
 ---
 
 ## API Documentation
 
 See [docs/API.md](docs/API.md)
+
+---
+
+## License
+
+MIT — free to use, modify and deploy.
+
+---
+
+*TurfCRM — Own Your Territory* 🎯
