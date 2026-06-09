@@ -3,19 +3,25 @@ import { useQuery } from '@tanstack/react-query';
 import { reportApi, userApi, masterApi } from '../../services/api';
 import { PageSpinner } from '../../components/common/Spinner';
 import { downloadBlob } from '../../hooks/useApi';
-import { ArrowDownTrayIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import Badge from '../../components/common/Badge';
 import toast from 'react-hot-toast';
 
-const TABS = ['visits', 'opportunities', 'followups', 'billing'];
+const TABS = ['visits', 'opportunities', 'followups', 'billing', 'brand', 'mom'];
+const TAB_LABELS = { visits: 'Visits', opportunities: 'Opportunities', followups: 'Follow-ups', billing: 'Billing', brand: 'Brand Report', mom: 'MOM Comparison' };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_KEYS = ['m01','m02','m03','m04','m05','m06','m07','m08','m09','m10','m11','m12'];
 
 export default function Reports() {
   const [tab, setTab] = useState('visits');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [salespersonId, setSalespersonId] = useState('');
+  const [brandId, setBrandId] = useState('');
+  const [momYear, setMomYear] = useState(new Date().getFullYear().toString());
 
   const { data: salespeople } = useQuery({ queryKey: ['salespeople'], queryFn: () => userApi.list({ role: 'sales_executive' }).then(r => r.data.data) });
+  const { data: brands } = useQuery({ queryKey: ['brands-list'], queryFn: () => masterApi.brands({ status: 'active' }).then(r => r.data.data) });
 
   const { data: visitReport, isLoading: visitLoading } = useQuery({
     queryKey: ['report-visits', fromDate, toDate, salespersonId],
@@ -37,6 +43,16 @@ export default function Reports() {
     queryFn: () => reportApi.billing({ month: new Date().getMonth() + 1, year: new Date().getFullYear() }).then(r => r.data.data),
     enabled: tab === 'billing',
   });
+  const { data: brandReport, isLoading: brandLoading } = useQuery({
+    queryKey: ['report-brand', fromDate, toDate, brandId],
+    queryFn: () => reportApi.brand({ from_date: fromDate, to_date: toDate, brand_id: brandId }).then(r => r.data.data),
+    enabled: tab === 'brand',
+  });
+  const { data: momReport, isLoading: momLoading } = useQuery({
+    queryKey: ['report-mom', momYear],
+    queryFn: () => reportApi.mom({ year: momYear }).then(r => r.data.data),
+    enabled: tab === 'mom',
+  });
 
   const handleExport = async () => {
     try {
@@ -44,6 +60,8 @@ export default function Reports() {
       downloadBlob(res.data, `${tab}-report.xlsx`);
     } catch { toast.error('Export failed'); }
   };
+
+  const currentMonth = new Date().getMonth(); // 0-indexed
 
   return (
     <div className="space-y-6">
@@ -54,25 +72,37 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg capitalize transition ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            {t}
-          </button>
-        ))}
+      {/* Tabs — scrollable on mobile */}
+      <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-max sm:w-fit">
+          {TABS.map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg whitespace-nowrap capitalize transition ${tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {TAB_LABELS[t]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input w-auto" />
-        <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input w-auto" />
-        <select value={salespersonId} onChange={e => setSalespersonId(e.target.value)} className="input w-auto">
-          <option value="">All Salespeople</option>
-          {salespeople?.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-        </select>
-      </div>
+      {tab !== 'mom' && (
+        <div className="flex flex-wrap gap-3">
+          {tab !== 'brand' && (
+            <select value={salespersonId} onChange={e => setSalespersonId(e.target.value)} className="input w-auto">
+              <option value="">All Salespeople</option>
+              {salespeople?.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+            </select>
+          )}
+          {(tab === 'brand') && (
+            <select value={brandId} onChange={e => setBrandId(e.target.value)} className="input w-auto">
+              <option value="">All Brands</option>
+              {brands?.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
+          <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="input w-auto" />
+          <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="input w-auto" />
+        </div>
+      )}
 
       {/* Visit Report */}
       {tab === 'visits' && (
@@ -184,11 +214,9 @@ export default function Reports() {
                         <td className="font-medium">{r.company_name}</td>
                         <td>₹{Number(r.current_month).toLocaleString('en-IN')}</td>
                         <td>₹{Number(r.prev_month).toLocaleString('en-IN')}</td>
-                        <td>
-                          <span className={`text-sm font-medium ${r.growth_pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                            {r.growth_pct != null ? `${r.growth_pct >= 0 ? '▲' : '▼'} ${Math.abs(r.growth_pct)}%` : '—'}
-                          </span>
-                        </td>
+                        <td><span className={`text-sm font-medium ${r.growth_pct >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {r.growth_pct != null ? `${r.growth_pct >= 0 ? '▲' : '▼'} ${Math.abs(r.growth_pct)}%` : '—'}
+                        </span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -218,6 +246,99 @@ export default function Reports() {
             </div>
           </div>
         )
+      )}
+
+      {/* Brand Report */}
+      {tab === 'brand' && (
+        brandLoading ? <PageSpinner /> : (
+          <div className="card">
+            <div className="card-header"><h3 className="font-semibold">Brand-wise Performance Report</h3></div>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Brand</th><th>Total Opps</th><th>Pipeline Value</th>
+                    <th>Won</th><th>Won Value</th><th>Lost</th>
+                    <th>🔥 Hot</th><th>🌡 Warm</th><th>New Clients</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brandReport?.map(r => (
+                    <tr key={r.brand_id || r.brand_name}>
+                      <td className="font-semibold text-gray-900">{r.brand_name || 'Untagged'}</td>
+                      <td>{r.total_opportunities}</td>
+                      <td className="font-medium">₹{Number(r.pipeline_value).toLocaleString('en-IN')}</td>
+                      <td><Badge color="green">{r.won_count}</Badge></td>
+                      <td className="text-green-700 font-medium">₹{Number(r.won_value).toLocaleString('en-IN')}</td>
+                      <td><Badge color="red">{r.lost_count}</Badge></td>
+                      <td><Badge color="orange">{r.hot_leads}</Badge></td>
+                      <td><Badge color="blue">{r.warm_leads}</Badge></td>
+                      <td>{r.new_customers_this_month}</td>
+                    </tr>
+                  ))}
+                  {!brandReport?.length && <tr><td colSpan={9} className="text-center text-gray-400 py-8">No data</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* MOM Report */}
+      {tab === 'mom' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <label className="label mb-0">Year</label>
+            <select value={momYear} onChange={e => setMomYear(e.target.value)} className="input w-auto">
+              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          {momLoading ? <PageSpinner /> : (
+            <div className="card">
+              <div className="card-header">
+                <h3 className="font-semibold">Month-over-Month Billing Comparison — {momYear}</h3>
+                <p className="text-xs text-gray-500">Green = growth, Red = decline vs previous month</p>
+              </div>
+              <div className="table-container">
+                <table className="table text-xs">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 bg-gray-50 z-10">Client</th>
+                      {MONTHS.slice(0, currentMonth + 1).map(m => <th key={m}>{m}</th>)}
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {momReport?.map(r => (
+                      <tr key={r.client_id}>
+                        <td className="font-medium text-gray-900 sticky left-0 bg-white whitespace-nowrap">{r.company_name}</td>
+                        {MONTH_KEYS.slice(0, currentMonth + 1).map((mk, i) => {
+                          const val = parseFloat(r[mk]) || 0;
+                          const pctKey = `mom_${mk}_pct`;
+                          const pct = r[pctKey];
+                          const isGrowth = pct != null && pct >= 0;
+                          const isDecline = pct != null && pct < 0;
+                          return (
+                            <td key={mk} className={`whitespace-nowrap ${i > 0 && val === 0 ? 'text-gray-300' : ''}`}>
+                              <div>{val > 0 ? `₹${(val/1000).toFixed(0)}K` : '—'}</div>
+                              {i > 0 && pct != null && (
+                                <div className={`text-xs font-medium ${isGrowth ? 'text-green-600' : 'text-red-500'}`}>
+                                  {isGrowth ? '▲' : '▼'}{Math.abs(pct)}%
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="font-bold text-gray-900">₹{Number(r.year_total).toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                    {!momReport?.length && <tr><td colSpan={14} className="text-center text-gray-400 py-8">No billing data for {momYear}</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

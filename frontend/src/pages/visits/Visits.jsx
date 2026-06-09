@@ -86,7 +86,7 @@ export default function Visits() {
               action={<Link to="/visits/new" className="btn-primary btn-sm">Add Visit</Link>} />
           ) : (
             <>
-              <div className="table-container">
+              <div className="hidden sm:block table-container">
                 <table className="table">
                   <thead>
                     <tr>
@@ -139,6 +139,34 @@ export default function Visits() {
                   </tbody>
                 </table>
               </div>
+              {/* Mobile Cards */}
+              <div className="sm:hidden divide-y divide-gray-100">
+                {data.data.map(v => (
+                  <div key={v.id} className="px-4 py-4">
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{v.company_name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{v.visit_date} · {v.salesperson_name}</p>
+                      </div>
+                      <Badge color={v.approval_status === 'approved' ? 'green' : v.approval_status === 'rejected' ? 'red' : 'yellow'}>{v.approval_status}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge color="blue">{MEETING_TYPES.find(t => t.value === v.meeting_type)?.label || v.meeting_type}</Badge>
+                      {v.person_met && <span className="text-xs text-gray-500">Met: {v.person_met}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Link to={`/visits/${v.id}`} className="text-blue-600 text-xs hover:underline">View Details</Link>
+                      {isManager && v.approval_status === 'pending' && (
+                        <>
+                          <button onClick={() => handleApprove(v.id)} className="text-green-600 text-xs font-medium hover:underline">✓ Approve</button>
+                          <button onClick={() => setRejectModal(v.id)} className="text-red-500 text-xs font-medium hover:underline">✗ Reject</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <Pagination meta={data.pagination} onPageChange={setPage} />
             </>
           )}

@@ -260,4 +260,50 @@ const exportClients = async (req, res) => {
   }
 };
 
-module.exports = { listClients, createClient, getClient, updateClient, getClientProfile, exportClients };
+const importClients = async (req, res) => {
+  if (!req.file) return sendError(res, 'No file uploaded', 400);
+  const summary = { total: 0, imported: 0, skipped: 0, errors: [] };
+  try {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.file.buffer);
+    const ws = wb.worksheets[0];
+    if (!ws) return sendError(res, 'Excel file has no worksheets', 400);
+
+    const rows = [];
+    ws.eachRow((row, rowNumber) => { if (rowNumber > 1) rows.push({ rowNumber, values: row.values }); });
+    summary.total = rows.length;
+
+    for (const { rowNumber, values } of rows) {
+      // Cols: Company Name | Contact Person | Mobile | Email | City | State | Pincode | Client Type | Industry | Salesperson Email
+      const company_name      = (values[1] || '').toString().trim();
+      const contact_person    = (values[2] || '').toString().trim() || null;
+      const mobile            = (values[3] || '').toString().trim() || null;
+      const email             = (values[4] || '').toString().trim() || null;
+      const city              = (values[5] || '').toString().trim() || null;
+      const state             = (values[6] || '').toString().trim() || null;
+      const pincode           = (values[7] || '').toString().trim() || null;
+      const client_type       = (values[8] || '').toString().trim() || 'new_prospect';
+      const industry_type     = (values[9] || '').toString().trim() || null;
+      const salesperson_email = (values[10] || '').toString().trim() || null;
+
+      if (!company_name) { summary.errors.push({ row: rowNumber, error: 'Company Name required' }); summary.skipped++; continue; }
+
+      try {
+        let assigned_salesperson_id = req.user.id;
+        if (salesperson_email) {
+          const [spRows] = await sequelize.query('SELECT id FROM users WHERE email=? AND deleted_at IS NULL LIMIT 1', { replacements: [salesperson_email] });
+          if (spRows[0]) assigned_salesperson_id = spRows[0].id;
+        }
+        const [result] = await sequelize.query(
+          `INSERT IGNORE INTO clients (uuid, company_name, contact_person, mobile, email, city, state, pincode, client_type, industry_type, assigned_salesperson_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          { replacements: [uuidv4(), company_name, contact_person, mobile, email, city, state, pincode, client_type, industry_type, assigned_salesperson_id, req.user.id] }
+        );
+        result.affectedRows === 0 ? summary.skipped++ : summary.imported++;
+      } catch (rowErr) { summary.errors.push({ row: rowNumber, error: rowErr.message }); summary.skipped++; }
+    }
+    return sendSuccess(res, 'Import complete', summary);
+  } catch (err) { return sendError(res, err.message, 500); }
+};
+
+module.exports = { listClients, createClient, getClient, updateClient, getClientProfile, exportClients, importClients };

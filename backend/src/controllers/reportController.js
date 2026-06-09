@@ -150,4 +150,120 @@ const exportReport = async (req, res) => {
   }
 };
 
-module.exports = { salespersonVisitReport, opportunityReport, followupReport, billingReport, exportReport };
+const brandReport = async (req, res) => {
+  const { from_date, to_date, brand_id } = req.query;
+  let where = 'o.deleted_at IS NULL';
+  const replacements = [];
+  if (from_date) { where += ' AND o.created_at >= ?'; replacements.push(from_date); }
+  if (to_date)   { where += ' AND o.created_at <= ?'; replacements.push(to_date); }
+  if (brand_id)  { where += ' AND o.brand_id = ?';    replacements.push(brand_id); }
+  const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+  try {
+    const [data] = await sequelize.query(
+      `SELECT b.id as brand_id, b.name as brand_name,
+         COUNT(o.id) as total_opportunities,
+         COALESCE(SUM(o.estimated_value), 0) as pipeline_value,
+         SUM(CASE WHEN o.current_stage='won' THEN 1 ELSE 0 END) as won_count,
+         COALESCE(SUM(CASE WHEN o.current_stage='won' THEN o.estimated_value ELSE 0 END), 0) as won_value,
+         SUM(CASE WHEN o.current_stage='lost' THEN 1 ELSE 0 END) as lost_count,
+         SUM(CASE WHEN o.current_stage IN ('negotiation','finalization') THEN 1 ELSE 0 END) as hot_leads,
+         SUM(CASE WHEN o.current_stage IN ('qualified','evaluation') THEN 1 ELSE 0 END) as warm_leads,
+         COUNT(DISTINCT CASE WHEN c.created_at >= ? THEN c.id ELSE NULL END) as new_customers_this_month
+       FROM opportunities o
+       LEFT JOIN brands b ON o.brand_id = b.id
+       LEFT JOIN clients c ON o.client_id = c.id
+       WHERE ${where}
+       GROUP BY b.id, b.name
+       ORDER BY pipeline_value DESC`,
+      { replacements: [thisMonthStart, ...replacements] }
+    );
+    return sendSuccess(res, 'Brand report', data);
+  } catch (err) { return sendError(res, err.message, 500); }
+};
+
+const momReport = async (req, res) => {
+  const year = parseInt(req.query.year) || new Date().getFullYear();
+  try {
+    const [data] = await sequelize.query(
+      `SELECT c.id as client_id, c.company_name,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=1  THEN br.invoice_amount ELSE 0 END),0) as m01,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=2  THEN br.invoice_amount ELSE 0 END),0) as m02,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=3  THEN br.invoice_amount ELSE 0 END),0) as m03,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=4  THEN br.invoice_amount ELSE 0 END),0) as m04,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=5  THEN br.invoice_amount ELSE 0 END),0) as m05,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=6  THEN br.invoice_amount ELSE 0 END),0) as m06,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=7  THEN br.invoice_amount ELSE 0 END),0) as m07,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=8  THEN br.invoice_amount ELSE 0 END),0) as m08,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=9  THEN br.invoice_amount ELSE 0 END),0) as m09,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=10 THEN br.invoice_amount ELSE 0 END),0) as m10,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=11 THEN br.invoice_amount ELSE 0 END),0) as m11,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=12 THEN br.invoice_amount ELSE 0 END),0) as m12,
+         COALESCE(SUM(br.invoice_amount),0) as year_total
+       FROM clients c
+       LEFT JOIN billing_records br ON br.client_id=c.id AND YEAR(br.invoice_date)=?
+       WHERE c.deleted_at IS NULL
+       GROUP BY c.id, c.company_name
+       HAVING year_total > 0
+       ORDER BY year_total DESC`,
+      { replacements: [year] }
+    );
+    const months = ['m01','m02','m03','m04','m05','m06','m07','m08','m09','m10','m11','m12'];
+    const currentMonth = new Date().getMonth() + 1;
+    const result = data.map(row => {
+      const mom = {};
+      for (let i = 1; i < Math.min(currentMonth, 12); i++) {
+        const prev = parseFloat(row[months[i-1]]) || 0;
+        const curr = parseFloat(row[months[i]]) || 0;
+        mom[`mom_${months[i]}_pct`] = prev === 0 ? null : Math.round(((curr - prev) / prev) * 10000) / 100;
+      }
+      return { ...row, ...mom };
+    });
+    return sendSuccess(res, 'Month-over-month report', result);
+  } catch (err) { return sendError(res, err.message, 500); }
+};
+
+const productMovementReport = async (req, res) => {
+  const { from_date, to_date, brand_id, category_id } = req.query;
+  let dateWhere = '1=1';
+  const baseR = [];
+  if (from_date)   { dateWhere += ' AND br.invoice_date >= ?'; baseR.push(from_date); }
+  if (to_date)     { dateWhere += ' AND br.invoice_date <= ?'; baseR.push(to_date); }
+  if (brand_id)    { dateWhere += ' AND br.brand_id = ?';      baseR.push(brand_id); }
+  if (category_id) { dateWhere += ' AND br.category_id = ?';   baseR.push(category_id); }
+  const now = new Date();
+  const thisMonth = now.getMonth() + 1, thisYear = now.getFullYear();
+  const lastMonth = thisMonth === 1 ? 12 : thisMonth - 1;
+  const lastMonthYear = thisMonth === 1 ? thisYear - 1 : thisYear;
+  try {
+    const [topProducts] = await sequelize.query(
+      `SELECT br.brand_name, br.category_name,
+         b.name as brand_label, cat.name as category_label,
+         COUNT(br.id) as invoice_count,
+         COALESCE(SUM(br.invoice_amount), 0) as total_amount
+       FROM billing_records br
+       LEFT JOIN brands b ON br.brand_id = b.id
+       LEFT JOIN categories cat ON br.category_id = cat.id
+       WHERE ${dateWhere}
+       GROUP BY br.brand_name, br.category_name, b.name, cat.name
+       ORDER BY total_amount DESC LIMIT 20`,
+      { replacements: baseR }
+    );
+    const [categoryMovement] = await sequelize.query(
+      `SELECT cat.id as category_id, COALESCE(cat.name, br.category_name, 'Untagged') as category_name,
+         COUNT(DISTINCT br.client_id) as unique_clients,
+         COUNT(br.id) as invoice_count,
+         COALESCE(SUM(br.invoice_amount), 0) as total_amount,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=? AND YEAR(br.invoice_date)=? THEN br.invoice_amount ELSE 0 END),0) as this_month,
+         COALESCE(SUM(CASE WHEN MONTH(br.invoice_date)=? AND YEAR(br.invoice_date)=? THEN br.invoice_amount ELSE 0 END),0) as last_month
+       FROM billing_records br
+       LEFT JOIN categories cat ON br.category_id = cat.id
+       WHERE ${dateWhere}
+       GROUP BY cat.id, category_name
+       ORDER BY total_amount DESC`,
+      { replacements: [thisMonth, thisYear, lastMonth, lastMonthYear, ...baseR] }
+    );
+    return sendSuccess(res, 'Product movement report', { top_products: topProducts, category_movement: categoryMovement });
+  } catch (err) { return sendError(res, err.message, 500); }
+};
+
+module.exports = { salespersonVisitReport, opportunityReport, followupReport, billingReport, exportReport, brandReport, momReport, productMovementReport };

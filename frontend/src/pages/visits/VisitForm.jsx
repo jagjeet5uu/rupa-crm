@@ -13,6 +13,7 @@ export default function VisitForm() {
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsCoords, setGpsCoords] = useState(null);
+  const [gpsAddress, setGpsAddress] = useState(null);
   const { register, handleSubmit, setValue, formState: { errors } } = useForm({
     defaultValues: { visit_date: new Date().toISOString().split('T')[0], visit_time: new Date().toTimeString().slice(0, 5) }
   });
@@ -24,12 +25,19 @@ export default function VisitForm() {
     if (!navigator.geolocation) { toast.error('GPS not supported'); return; }
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setGpsCoords(coords);
         setValue('latitude', coords.lat);
         setValue('longitude', coords.lng);
         setValue('gps_captured_at', new Date().toISOString());
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&zoom=18`);
+          const geo = await r.json();
+          const addr = geo.display_name || `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+          setGpsAddress(addr);
+          setValue('gps_address', addr);
+        } catch { setGpsAddress(`${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`); }
         toast.success('Location captured');
         setGpsLoading(false);
       },
@@ -109,7 +117,9 @@ export default function VisitForm() {
           <div className="card-body">
             {gpsCoords ? (
               <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
-                ✓ Location captured: {gpsCoords.lat.toFixed(5)}, {gpsCoords.lng.toFixed(5)}
+                <p className="font-medium">✓ Location captured</p>
+                {gpsAddress && <p className="text-xs mt-1 text-green-600">{gpsAddress}</p>}
+                <p className="text-xs mt-0.5 text-green-500">{gpsCoords.lat.toFixed(6)}, {gpsCoords.lng.toFixed(6)}</p>
               </div>
             ) : (
               <div>

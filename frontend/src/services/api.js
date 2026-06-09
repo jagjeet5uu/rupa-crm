@@ -61,6 +61,7 @@ export const clientApi = {
   create: (data) => api.post('/clients', data),
   update: (id, data) => api.put(`/clients/${id}`, data),
   export: (params) => api.get('/clients/export', { params, responseType: 'blob' }),
+  import: (formData) => api.post('/clients/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 // Visits
@@ -138,6 +139,9 @@ export const reportApi = {
   opportunities: (params) => api.get('/reports/opportunities', { params }),
   followups: (params) => api.get('/reports/followups', { params }),
   billing: (params) => api.get('/reports/billing', { params }),
+  brand: (params) => api.get('/reports/brand', { params }),
+  mom: (params) => api.get('/reports/mom', { params }),
+  products: (params) => api.get('/reports/products', { params }),
   export: (params) => api.get('/reports/export', { params, responseType: 'blob' }),
 };
 
